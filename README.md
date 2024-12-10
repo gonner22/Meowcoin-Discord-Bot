@@ -1,6 +1,6 @@
-# Discord Bot for Meowcoin (TLS)
+# Discord Bot for Meowcoin (MEWC)
 
-Welcome to the Discord Bot designed to provide real-time updates and statistics for Meowcoin (TLS) cryptocurrency. This bot automatically creates and updates voice channels in your Discord server, displaying essential information such as difficulty, hashrate, block count, supply, price, and market cap.
+Welcome to the Discord Bot designed to provide real-time updates and statistics for Meowcoin (MEWC) cryptocurrency. This bot automatically creates and updates voice channels in your Discord server, displaying essential information such as difficulty, hashrate, block count, supply, price, and market cap.
 
 ## Features
 
