@@ -53,7 +53,7 @@ async def create_or_update_channel(guild, category, channel_name, stat_value):
             formatted_value = stat_value
         else:
             if channel_name.lower() == "members:":
-                formatted_value = "{:.0f}".format(stat_value)
+                formatted_value = "{:,.0f}".format(stat_value)
             elif channel_name.lower() == "supply:":
                 formatted_value = "{:,.2f}B MEWC".format(stat_value)
             elif channel_name.lower() == "price: $":
@@ -65,7 +65,7 @@ async def create_or_update_channel(guild, category, channel_name, stat_value):
             elif channel_name.lower() in ["difficulty:", "block:"]:
                 formatted_value = "{:,.0f}".format(stat_value)
             elif channel_name.lower() == "24h volume:":
-                formatted_value = "{:,.2f}".format(stat_value)
+                formatted_value = "{:,.0f}".format(stat_value)
             else:
                 formatted_value = stat_value
 
@@ -167,14 +167,19 @@ async def update_stats_channels(guild):
         print(f"Price '{price}'")
         await create_or_update_channel(guild, category, "Price: $", float(price))
         time.sleep(0.5)
-        print(f"24h Volume '{volume}'")
-        await create_or_update_channel(guild, category, "24h Volume: $", round(float(volume), 2))
+
+        # Ensure volume is formatted correctly
+        formatted_volume = "{:,.0f}".format(volume)
+        print(f"24h Volume '{formatted_volume}'")
+        await create_or_update_channel(guild, category, "24h Volume: $", formatted_volume)
         time.sleep(0.5)
 
-        # Calculate market cap and update its channel
+        # Calculate market cap and ensure it's formatted correctly
         if supply != "N/A" and price != "N/A":
             market_cap = round(supply * 1000000000 * float(price))
-            await create_or_update_channel(guild, category, "Market Cap: $", market_cap)
+            formatted_market_cap = "{:,.0f}".format(market_cap)
+            print(f"Market Cap '{formatted_market_cap}'")
+            await create_or_update_channel(guild, category, "Market Cap: $", formatted_market_cap)
         time.sleep(0.5)
 
         # Set all channels to private
