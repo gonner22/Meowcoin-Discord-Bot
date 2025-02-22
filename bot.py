@@ -86,28 +86,28 @@ async def update_stats_channels(guild):
                     difficulty_data = await response.json()
                     difficulty = difficulty_data["difficulty_raw"]
             except Exception:
-                difficulty = "N/A"
+                pass
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getnetworkhashps") as response:
                     hashrate_data = await response.json()
                     hashrate = hashrate_data["hashrate_raw"] / 1e9  # Convert to GH/s
             except Exception:
-                hashrate = "N/A"
+                pass
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getblockcount") as response:
                     block_data = await response.json()
                     block_count = block_data["blockcount"]
             except Exception:
-                block_count = "N/A"
+                pass
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getcoinsupply") as response:
                     supply_data = await response.json()
                     supply = float(supply_data["coinsupply"]) / 1000000000
             except Exception:
-                supply = "N/A"
+                pass
 
             try:
                 async with session.get("https://api.xeggex.com/api/v2/market/getbysymbol/mewc_usdt") as response:
@@ -119,18 +119,19 @@ async def update_stats_channels(guild):
                     print(volume_xeggex)
             except Exception:
                 price = "N/A"
-                volume = 0
+                volume_xeggex = "N/A"
 
-            try:
-                async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
-                    text_data = await response.text()
-                    volume_data = json.loads(text_data)
-                    volume_tradeogre = volume_data["volume"]
-                    print(volume_tradeogre)
-            except Exception:
-                price = 0
+            # try:
+            #     async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
+            #         text_data = await response.text()
+            #         volume_data = json.loads(text_data)
+            #         volume_tradeogre = volume_data["volume"]
+            #         print(volume_tradeogre)
+            # except Exception:
+            #     price = 0
 
-            volume = float(volume_xeggex) + float(volume_tradeogre)
+            # volume = float(volume_xeggex) + float(volume_tradeogre)
+            volume = volume_xeggex
 
 
         try:
@@ -165,11 +166,17 @@ async def update_stats_channels(guild):
         await create_or_update_channel(guild, category, "Supply:", supply)
         time.sleep(0.5)
         print(f"Price '{price}'")
-        await create_or_update_channel(guild, category, "Price: $", float(price))
+        if price != "N/A":
+            await create_or_update_channel(guild, category, "Price: $", float(price))
+        else:
+            await create_or_update_channel(guild, category, "Price: $", price)
         time.sleep(0.5)
-
+        
         # Ensure volume is formatted correctly
-        formatted_volume = "{:,.0f}".format(volume)
+        if volume != "N/A":
+            formatted_volume = "{:,.0f}".format(volume)
+        else:
+            formatted_volume = "N/A"
         print(f"24h Volume '{formatted_volume}'")
         await create_or_update_channel(guild, category, "24h Volume: $", formatted_volume)
         time.sleep(0.5)
@@ -178,8 +185,10 @@ async def update_stats_channels(guild):
         if supply != "N/A" and price != "N/A":
             market_cap = round(supply * 1000000000 * float(price))
             formatted_market_cap = "{:,.0f}".format(market_cap)
-            print(f"Market Cap '{formatted_market_cap}'")
-            await create_or_update_channel(guild, category, "Market Cap: $", formatted_market_cap)
+        else:
+            formatted_market_cap = "N/A"
+        print(f"Market Cap '{formatted_market_cap}'")
+        await create_or_update_channel(guild, category, "Market Cap: $", formatted_market_cap)
         time.sleep(0.5)
 
         # Set all channels to private
