@@ -86,53 +86,103 @@ async def update_stats_channels(guild):
                     difficulty_data = await response.json()
                     difficulty = difficulty_data["difficulty_raw"]
             except Exception:
-                pass
+                difficulty = "N/A"
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getnetworkhashps") as response:
                     hashrate_data = await response.json()
                     hashrate = hashrate_data["hashrate_raw"] / 1e9  # Convert to GH/s
             except Exception:
-                pass
+                hashrate = "N/A"
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getblockcount") as response:
                     block_data = await response.json()
                     block_count = block_data["blockcount"]
             except Exception:
-                pass
+                block_count = "N/A"
 
             try:
                 async with session.get("https://mewc.cryptoscope.io/api/getcoinsupply") as response:
                     supply_data = await response.json()
-                    supply = float(supply_data["coinsupply"]) / 1000000000
+                    supply = float(supply_data["coinsupply"]) / 1_000_000_000  # Already in billions
             except Exception:
-                pass
+                supply = "N/A"
 
+            # --- EXCHANGE DATA COLLECTION ---
+            # Xeggex
             try:
                 async with session.get("https://api.xeggex.com/api/v2/market/getbysymbol/mewc_usdt") as response:
                     price_data = await response.json()
-                    #price_data = json.loads(text_data)
-                    price = price_data["lastPrice"]
-                    volume_mewc = price_data["volume"]
-                    volume_xeggex = float(volume_mewc) * float(price)
-                    print(volume_xeggex)
+                    xeggex_price = float(price_data["lastPrice"])
+                    xeggex_volume = float(price_data["volume"]) * xeggex_price
+                    xeggex_change = float(price_data.get("changePercent", 0))
             except Exception:
-                price = "N/A"
-                volume_xeggex = "N/A"
+                xeggex_price = "N/A"
+                xeggex_volume = "N/A"
+                xeggex_change = "N/A"
 
-            # try:
-            #     async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
-            #         text_data = await response.text()
-            #         volume_data = json.loads(text_data)
-            #         volume_tradeogre = volume_data["volume"]
-            #         print(volume_tradeogre)
-            # except Exception:
-            #     price = 0
+            # TradeOgre
+            try:
+                async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
+                    text_data = await response.text()
+                    tradeogre_data = json.loads(text_data)
+                    tradeogre_price = float(tradeogre_data["price"])
+                    tradeogre_volume = float(tradeogre_data["volume"])
+                    # Calculate percent change from initialprice
+                    initial_price = float(tradeogre_data.get("initialprice", tradeogre_price))
+                    if initial_price > 0:
+                        tradeogre_change = ((tradeogre_price - initial_price) / initial_price) * 100
+                    else:
+                        tradeogre_change = 0
+            except Exception:
+                tradeogre_price = "N/A"
+                tradeogre_volume = "N/A"
+                tradeogre_change = "N/A"
 
-            # volume = float(volume_xeggex) + float(volume_tradeogre)
-            volume = volume_xeggex
+            # --- WEIGHTED AVERAGE CALCULATION ---
+            available_exchanges = []
+            if xeggex_price != "N/A" and xeggex_volume != "N/A":
+                available_exchanges.append({
+                    "name": "XeggeX",
+                    "price": xeggex_price,
+                    "volume": xeggex_volume,
+                    "change": xeggex_change
+                })
+            if tradeogre_price != "N/A" and tradeogre_volume != "N/A":
+                available_exchanges.append({
+                    "name": "TradeOgre",
+                    "price": tradeogre_price,
+                    "volume": tradeogre_volume,
+                    "change": tradeogre_change
+                })
 
+            # Print which exchanges are being used
+            print("\nExchanges being used:")
+            for ex in available_exchanges:
+                print(f"{ex['name']} - Price: ${ex['price']:.6f}, Volume: ${ex['volume']:,.2f}")
+            print(f"Total exchanges used: {len(available_exchanges)}\n")
+
+            if available_exchanges:
+                total_volume = sum(ex["volume"] for ex in available_exchanges)
+                weighted_price = sum(ex["price"] * (ex["volume"] / total_volume) for ex in available_exchanges)
+                # Weighted average of price change if available
+                available_changes = [ex for ex in available_exchanges if ex["change"] != "N/A"]
+                if available_changes:
+                    weighted_change = sum(
+                        float(ex["change"]) * (ex["volume"] / total_volume)
+                        for ex in available_changes
+                    )
+                    if weighted_change >= 0:
+                        price_display = f"${weighted_price:.6f} (▲ +{weighted_change:.2f}% 24h)"
+                    else:
+                        price_display = f"${weighted_price:.6f} (▼ {weighted_change:.2f}% 24h)"
+                else:
+                    price_display = f"${weighted_price:.6f}"
+            else:
+                weighted_price = "N/A"
+                price_display = "N/A"
+                total_volume = "N/A"
 
         try:
             member_count = guild.member_count
@@ -165,32 +215,26 @@ async def update_stats_channels(guild):
         print(f"Supply '{supply}'")
         await create_or_update_channel(guild, category, "Supply:", supply)
         time.sleep(0.5)
-        print(f"Price '{price}'")
-        if price != "N/A":
-            await create_or_update_channel(guild, category, "Price: $", float(price))
-        else:
-            await create_or_update_channel(guild, category, "Price: $", price)
+        print(f"Price '{price_display}'")
+        await create_or_update_channel(guild, category, "Price:", price_display)
         time.sleep(0.5)
-        
         # Ensure volume is formatted correctly
-        if volume != "N/A":
-            formatted_volume = "{:,.0f}".format(volume)
+        if total_volume != "N/A":
+            formatted_volume = "{:,.0f}".format(total_volume)
         else:
             formatted_volume = "N/A"
         print(f"24h Volume '{formatted_volume}'")
         await create_or_update_channel(guild, category, "24h Volume: $", formatted_volume)
         time.sleep(0.5)
-
         # Calculate market cap and ensure it's formatted correctly
-        if supply != "N/A" and price != "N/A":
-            market_cap = round(supply * 1000000000 * float(price))
+        if supply != "N/A" and weighted_price != "N/A":
+            market_cap = round(supply * weighted_price * 1_000_000_000)  # supply is in billions
             formatted_market_cap = "{:,.0f}".format(market_cap)
         else:
             formatted_market_cap = "N/A"
         print(f"Market Cap '{formatted_market_cap}'")
         await create_or_update_channel(guild, category, "Market Cap: $", formatted_market_cap)
         time.sleep(0.5)
-
         # Set all channels to private
         for channel in category.voice_channels:
             await set_channel_private(category, channel)
