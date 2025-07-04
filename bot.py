@@ -110,18 +110,6 @@ async def update_stats_channels(guild):
                 supply = "N/A"
 
             # --- EXCHANGE DATA COLLECTION ---
-            # Xeggex
-            try:
-                async with session.get("https://api.xeggex.com/api/v2/market/getbysymbol/mewc_usdt") as response:
-                    price_data = await response.json()
-                    xeggex_price = float(price_data["lastPrice"])
-                    xeggex_volume = float(price_data["volume"]) * xeggex_price
-                    xeggex_change = float(price_data.get("changePercent", 0))
-            except Exception:
-                xeggex_price = "N/A"
-                xeggex_volume = "N/A"
-                xeggex_change = "N/A"
-
             # TradeOgre
             try:
                 async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
@@ -142,13 +130,6 @@ async def update_stats_channels(guild):
 
             # --- WEIGHTED AVERAGE CALCULATION ---
             available_exchanges = []
-            if xeggex_price != "N/A" and xeggex_volume != "N/A":
-                available_exchanges.append({
-                    "name": "XeggeX",
-                    "price": xeggex_price,
-                    "volume": xeggex_volume,
-                    "change": xeggex_change
-                })
             if tradeogre_price != "N/A" and tradeogre_volume != "N/A":
                 available_exchanges.append({
                     "name": "TradeOgre",
