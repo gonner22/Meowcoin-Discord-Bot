@@ -21,7 +21,7 @@ intents.members = True
 # Create a Discord bot instance
 client = commands.Bot(command_prefix="!", intents=intents)
 
-# Define a global variable to store the previous XeggeX value
+# Define a global variable to store the last notification time
 last_notification_time = 0
 
 # Function to set a voice channel to private (disconnect for everyone)
@@ -109,61 +109,44 @@ async def update_stats_channels(guild):
             except Exception:
                 supply = "N/A"
 
-            # --- EXCHANGE DATA COLLECTION ---
-            # TradeOgre
+            # --- COINGECKO DATA COLLECTION ---
             try:
-                async with session.get("https://tradeogre.com/api/v1/ticker/mewc-usdt") as response:
-                    text_data = await response.text()
-                    tradeogre_data = json.loads(text_data)
-                    tradeogre_price = float(tradeogre_data["price"])
-                    tradeogre_volume = float(tradeogre_data["volume"])
-                    # Calculate percent change from initialprice
-                    initial_price = float(tradeogre_data.get("initialprice", tradeogre_price))
-                    if initial_price > 0:
-                        tradeogre_change = ((tradeogre_price - initial_price) / initial_price) * 100
+                async with session.get("https://api.coingecko.com/api/v3/coins/meowcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false") as response:
+                    coingecko_data = await response.json()
+                    
+                    # Extract price in USD
+                    current_price = coingecko_data["market_data"]["current_price"]["usd"]
+                    
+                    # Extract 24h volume in USD
+                    volume_24h = coingecko_data["market_data"]["total_volume"]["usd"]
+                    
+                    # Extract market cap in USD
+                    market_cap_usd = coingecko_data["market_data"]["market_cap"]["usd"]
+                    
+                    # Extract 24h price change percentage
+                    price_change_24h = coingecko_data["market_data"]["price_change_percentage_24h"]
+                    
+                    # Format price display with 24h change
+                    if price_change_24h is not None:
+                        if price_change_24h >= 0:
+                            price_display = f"${current_price:.6f} (▲ +{price_change_24h:.2f}% 24h)"
+                        else:
+                            price_display = f"${current_price:.6f} (▼ {price_change_24h:.2f}% 24h)"
                     else:
-                        tradeogre_change = 0
-            except Exception:
-                tradeogre_price = "N/A"
-                tradeogre_volume = "N/A"
-                tradeogre_change = "N/A"
-
-            # --- WEIGHTED AVERAGE CALCULATION ---
-            available_exchanges = []
-            if tradeogre_price != "N/A" and tradeogre_volume != "N/A":
-                available_exchanges.append({
-                    "name": "TradeOgre",
-                    "price": tradeogre_price,
-                    "volume": tradeogre_volume,
-                    "change": tradeogre_change
-                })
-
-            # Print which exchanges are being used
-            print("\nExchanges being used:")
-            for ex in available_exchanges:
-                print(f"{ex['name']} - Price: ${ex['price']:.6f}, Volume: ${ex['volume']:,.2f}")
-            print(f"Total exchanges used: {len(available_exchanges)}\n")
-
-            if available_exchanges:
-                total_volume = sum(ex["volume"] for ex in available_exchanges)
-                weighted_price = sum(ex["price"] * (ex["volume"] / total_volume) for ex in available_exchanges)
-                # Weighted average of price change if available
-                available_changes = [ex for ex in available_exchanges if ex["change"] != "N/A"]
-                if available_changes:
-                    weighted_change = sum(
-                        float(ex["change"]) * (ex["volume"] / total_volume)
-                        for ex in available_changes
-                    )
-                    if weighted_change >= 0:
-                        price_display = f"${weighted_price:.6f} (▲ +{weighted_change:.2f}% 24h)"
-                    else:
-                        price_display = f"${weighted_price:.6f} (▼ {weighted_change:.2f}% 24h)"
-                else:
-                    price_display = f"${weighted_price:.6f}"
-            else:
-                weighted_price = "N/A"
+                        price_display = f"${current_price:.6f}"
+                        
+                    print(f"\nCoinGecko data retrieved:")
+                    print(f"Price: ${current_price:.6f}")
+                    print(f"24h Volume: ${volume_24h:,.2f}")
+                    print(f"Market Cap: ${market_cap_usd:,.0f}")
+                    print(f"24h Change: {price_change_24h:.2f}%\n")
+                    
+            except Exception as e:
+                print(f"Error fetching CoinGecko data: {e}")
+                current_price = "N/A"
+                volume_24h = "N/A"
+                market_cap_usd = "N/A"
                 price_display = "N/A"
-                total_volume = "N/A"
 
         try:
             member_count = guild.member_count
@@ -200,17 +183,16 @@ async def update_stats_channels(guild):
         await create_or_update_channel(guild, category, "Price:", price_display)
         time.sleep(0.5)
         # Ensure volume is formatted correctly
-        if total_volume != "N/A":
-            formatted_volume = "{:,.0f}".format(total_volume)
+        if volume_24h != "N/A":
+            formatted_volume = "{:,.0f}".format(volume_24h)
         else:
             formatted_volume = "N/A"
         print(f"24h Volume '{formatted_volume}'")
         await create_or_update_channel(guild, category, "24h Volume: $", formatted_volume)
         time.sleep(0.5)
-        # Calculate market cap and ensure it's formatted correctly
-        if supply != "N/A" and weighted_price != "N/A":
-            market_cap = round(supply * weighted_price * 1_000_000_000)  # supply is in billions
-            formatted_market_cap = "{:,.0f}".format(market_cap)
+        # Use market cap directly from CoinGecko
+        if market_cap_usd != "N/A":
+            formatted_market_cap = "{:,.0f}".format(market_cap_usd)
         else:
             formatted_market_cap = "N/A"
         print(f"Market Cap '{formatted_market_cap}'")
